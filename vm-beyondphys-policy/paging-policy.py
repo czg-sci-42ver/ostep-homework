@@ -135,7 +135,7 @@ else:
     # track reference bits for clock
     ref   = {}
 
-    cdebug = False
+    cdebug = True
 
     # need to generate addresses
     addrIndex = 0
@@ -174,6 +174,9 @@ else:
                     # victim = memory.pop(int(random.random() * count))
                     victim = -1
                     while victim == -1:
+                        """
+                        The random may be not great.
+                        """
                         page = memory[int(random.random() * count)]
                         if cdebug:
                             print('  scan page:', page, ref[page])
@@ -236,6 +239,9 @@ else:
                                 break
                         if whenReferenced < minReplace:
                             replaceIdx  = pageIndex
+                            """
+                            `replacePage` is not used
+                            """
                             replacePage = page
                             minReplace  = whenReferenced
                     victim = memory.pop(replaceIdx)

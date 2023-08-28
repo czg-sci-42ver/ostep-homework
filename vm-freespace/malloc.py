@@ -119,6 +119,12 @@ class malloc:
         if self.coalesce == True:
             self.newlist = []
             self.curr    = self.freelist[0]
+            """
+            If using `-l SIZESORT+` the largest address is probably first, 
+            then `eaddr == (self.curr[0] + self.curr[1])` probably fails,
+            then the biggest block will not be coalesced
+            So `self.curr = eaddr, esize` will traverse the next element.
+            """
             for i in range(1, len(self.freelist)):
                 eaddr, esize = self.freelist[i]
                 if eaddr == (self.curr[0] + self.curr[1]):
