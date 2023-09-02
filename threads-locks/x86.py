@@ -273,8 +273,13 @@ class cpu:
         self.registers[src] = old
         return 0
 
+    """
+    here reg1,reg2 all 0
+    fetch old to src, and add src num with num at value location to value location.
+    """
     def fetchadd(self, src, value, reg1, reg2):
         tmp                 = value + self.registers[reg1] + self.registers[reg2]
+        # print("2 regs:",self.registers[reg1],self.registers[reg2])
         old                 = self.memory[tmp]
         self.memory[tmp]    = self.memory[tmp] + self.registers[src] 
         self.registers[src] = old
@@ -711,6 +716,12 @@ class cpu:
                     (dst, dtype) = self.getarg(arg2)
                     tmp = dst.split(',')
                     assert(len(tmp) == 4)
+                    """
+                    dst meaning
+                    `return '%d,%d,%d,1' % (self.vars[tmp], self.register_translate('zero'), self.register_translate('zero')), 'TYPE_MEMORY'`
+                    it may be just differentiate from others.
+                    """
+                    print("fetchadd tmp:",tmp)
                     if stype == 'TYPE_REGISTER' and dtype == 'TYPE_MEMORY':
                         self.memory[pc] = 'self.fetchadd(%d, %d, %d, %d)' % (src, int(tmp[0]), int(tmp[1]), int(tmp[2]))
                     else:
