@@ -18,9 +18,14 @@ pthread_mutex_t m     = PTHREAD_MUTEX_INITIALIZER;
 
 #include "main-header.h"
 
+#define CHECK_FILL_GET_OVERLAP
+
 void do_fill(int value) {
     // ensure empty before usage
     ensure(buffer[fill_ptr] == EMPTY, "error: tried to fill a non-empty buffer");
+    #ifdef CHECK_FILL_GET_OVERLAP
+    printf("enter fill change ptr %d\n",fill_ptr);
+    #endif
     buffer[fill_ptr] = value;
     fill_ptr = (fill_ptr + 1) % max;
     num_full++;
@@ -29,6 +34,9 @@ void do_fill(int value) {
 int do_get() {
     int tmp = buffer[use_ptr];
     ensure(tmp != EMPTY, "error: tried to get an empty buffer");
+    #ifdef CHECK_FILL_GET_OVERLAP
+    printf("enter get change ptr %d\n",use_ptr);
+    #endif
     buffer[use_ptr] = EMPTY; 
     use_ptr = (use_ptr + 1) % max;
     num_full--;

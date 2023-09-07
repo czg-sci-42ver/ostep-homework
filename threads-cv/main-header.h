@@ -3,6 +3,10 @@
 
 // all this is for the homework side of things
 
+#include <time.h>
+#include <errno.h>
+#define CHECK_TIME
+
 int do_trace = 0;
 int do_timing = 0;
 
@@ -22,8 +26,8 @@ int do_timing = 0;
 #define c5 do_pause(id, 0, 5, "c5"); 
 #define c6 do_pause(id, 0, 6, "c6"); 
 
-int producer_pause_times[MAX_THREADS][7];
-int consumer_pause_times[MAX_THREADS][7];
+double producer_pause_times[MAX_THREADS][7];
+double consumer_pause_times[MAX_THREADS][7];
 
 // needed to avoid interleaving of print out from threads
 pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -36,7 +40,7 @@ void do_print_headers() {
     for (i = 0; i < max; i++) {
 	printf(" %3s ", "   ");
     }
-    printf("  ");
+    printf("   ");
 
     for (i = 0; i < producers; i++) 
 	printf("P%d ", i);
@@ -98,15 +102,60 @@ void do_pause(int thread_id, int is_producer, int pause_slot, char *str) {
     }
 
     int local_id = thread_id;
-    int pause_time;
+    double pause_time;
     if (is_producer) {
 	pause_time = producer_pause_times[local_id][pause_slot];
     } else {
+	/*
+	only one global `thread_id` in Pthread_create(&pid[i], NULL, producer, (void *) (long long) thread_id);
+	So `thread_id - producers`
+	*/
 	local_id = thread_id - producers;
 	pause_time = consumer_pause_times[local_id][pause_slot];
     }
-    // printf(" PAUSE %d\n", pause_time);
-    sleep(pause_time);
+    // printf(" PAUSE %f\n", pause_time);
+	struct timespec ts;
+	ts.tv_sec = (int)pause_time;
+	ts.tv_nsec = (pause_time - ts.tv_sec)*1e+9;
+	if (!((ts.tv_sec==0) && (ts.tv_nsec==0))) {
+		#ifdef CHECK_TIME
+		printf("%ld,%ld\n",ts.tv_sec,ts.tv_nsec); /*check_target*/
+		fflush(stdout);
+		#endif
+		int res;
+		struct timespec ts_rem;
+		#ifdef CHECK_TIME
+		printf("will begin nanosleep\n");
+		#endif
+		res = nanosleep(&ts, &ts_rem);
+		#ifdef CHECK_TIME
+		printf("end nanosleep 1st time\n");
+		#endif
+		while (res && errno == EINTR){
+			#ifdef CHECK_TIME
+			printf("got interrupted\n");
+			#endif
+			res = nanosleep(&ts, &ts_rem);
+		}
+		/*
+		No "got interrupted"
+		but "will begin nanosleep\n" is associated with "check_target"
+		So nanosleep of different threads overlap.
+		*/
+		#ifdef CHECK_TIME
+		printf("check whether sleep suspends all CPUs\n");
+		#endif
+		/*
+		This may make stdout messy but it can show exactly when `nanosleep` finished.
+		*/
+		fflush(stdout);
+		/*
+		From https://www.geeksforgeeks.org/c-nanosleep-function/ and https://stackoverflow.com/a/1157217/21294350
+		not use `ts_rem` to check.
+		assert((ts.tv_sec==0) && (ts.tv_nsec==0));
+		printf("remaining: %ld,%ld\n",ts_rem.tv_sec,ts_rem.tv_nsec);
+		*/
+	}
 }
 
 void ensure(int expression, char *msg) {
@@ -117,7 +166,7 @@ void ensure(int expression, char *msg) {
 }
 
 void parse_pause_string(char *str, char *name, int expected_pieces, 
-			int pause_array[MAX_THREADS][7]) {
+			double pause_array[MAX_THREADS][7]) {
 
     // string looks like this (or should):
     //   1,2,0:2,3,4,5
@@ -128,6 +177,9 @@ void parse_pause_string(char *str, char *name, int expected_pieces,
     char *copy_entire = strdup(str);
     char *outer_marker;
     int colon_count = 0;
+	/*
+	strtok_r mainly to allow two interleaved different delimiters.
+	*/
     char *p = strtok_r(copy_entire, ":", &outer_marker);
     while (p) {
 	// init array: default sleep is 0
@@ -143,7 +195,7 @@ void parse_pause_string(char *str, char *name, int expected_pieces,
 
 	int inner_index = 0;
 	while (c) {
-	    int pause_amount = atoi(c);
+	    double pause_amount = atof(c);
 	    ensure(inner_index < 7, "you specified a sleep string incorrectly... (too many comma-separated args)");
 	    // printf("setting %s pause %d to %d\n", name, inner_index, pause_amount);
 	    pause_array[index][inner_index] = pause_amount;
@@ -158,6 +210,7 @@ void parse_pause_string(char *str, char *name, int expected_pieces,
 	// continue with colon separated list
 	p = strtok_r(NULL, ":", &outer_marker);
 	colon_count++;
+	assert(index==colon_count);
     }
 
     free(copy_entire);

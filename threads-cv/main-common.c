@@ -69,10 +69,13 @@ int main(int argc, char *argv[]) {
 	parse_pause_string(producer_pause_string, "producers", producers, producer_pause_times);
     if (consumer_pause_string != NULL) 
 	parse_pause_string(consumer_pause_string, "consumers", consumers, consumer_pause_times);
+    int i,j;
+    for (i=0; i<producers; i++)
+        for (j=0; j<7; j++)
+            printf("%d,%d:%f\n",i,j,producer_pause_times[i][j]);
 
     // make space for shared buffer, and init it ...
     buffer = (int *) Malloc(max * sizeof(int));
-    int i;
     for (i = 0; i < max; i++) {
 	buffer[i] = EMPTY;
     }
@@ -85,6 +88,9 @@ int main(int argc, char *argv[]) {
     pthread_t pid[MAX_THREADS], cid[MAX_THREADS];
     int thread_id = 0;
     for (i = 0; i < producers; i++) {
+    /*
+    `(void *) thread_id` is also ok.
+    */
 	Pthread_create(&pid[i], NULL, producer, (void *) (long long) thread_id); 
 	thread_id++;
     }
@@ -98,6 +104,20 @@ int main(int argc, char *argv[]) {
 	Pthread_join(pid[i], NULL); 
     }
 
+    /*
+    TODO purpose
+    this is manual addition of one fill `do_fill(END_OF_STREAM);` after all producers
+    to make `while (tmp != END_OF_STREAM) {` exit.
+    here
+    """
+    $ ./main-two-cvs-while -l 3 -m 5 -p 1 -c 1 -v
+      0 [ ---  ---  --- *---  --- ]    c2
+      1 [ ---  ---  --- uEOS f--- ] [main: added end-of-stream marker]
+    """
+    needs consumer wait to release the lock after `c2`.
+    2. Here will filled `consumers` "END_OF_STREAM" which may be a bit redundant 
+    although it is a must to make the `while (tmp != END_OF_STREAM) {` exit for each consumer.
+    */
     // end case: when producers are all done
     // - put "consumers" number of END_OF_STREAM's in queue
     // - when consumer sees -1, it exits
