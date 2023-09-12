@@ -19,6 +19,8 @@ void vector_add(vector_t *v_dst, vector_t *v_src) {
     } else {
 	// special case: src and dst are the same
 	Pthread_mutex_lock(&v_src->lock);
+    fprintf(stderr, "weird equal\n");
+    exit(-1);
     }
     int i;
     for (i = 0; i < VECTOR_SIZE; i++) {

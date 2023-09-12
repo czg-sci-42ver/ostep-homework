@@ -10,10 +10,17 @@
 #include "vector-header.h"
 
 // taken from https://en.wikipedia.org/wiki/Fetch-and-add
+/*
+AT&T size suffix https://stackoverflow.com/questions/20247944
+movq https://stackoverflow.com/questions/27990177 is already in x86 https://www.felixcloutier.com/x86/movd:movq
+here att syntax put the dst
+
+With "-O" default inline.
+*/
 int fetch_and_add(int * variable, int value) {
-    asm volatile("lock; xaddl %%eax, %2;"
-		 :"=a" (value)                  
-		 :"a" (value), "m" (*variable)  
+    asm volatile("lock; xaddl %%eax, %1"
+		 :"+a" (value), "+m" (*variable)
+		 :
 		 :"memory");
     return value;
 }
