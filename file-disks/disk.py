@@ -44,6 +44,17 @@ STATE_DONE   = 4
 #     new algs to scan and c-scan the disk?
 #
 
+"""
+self added
+"""
+NO_ANGLE_OFFSET=False
+DEBUG_ECHO_SATF=True
+TRACK_ECHO=True
+DEBUG_ECHO_WINDOW=True
+IO_LOG=True
+LOG_BSATF=True
+DIST_LOG=True
+
 class Disk:
     def __init__(self, addr, addrDesc, lateAddr, lateAddrDesc,
                  policy, seekSpeed, rotateSpeed, skew, window, compute,
@@ -278,6 +289,7 @@ class Disk:
         for i in range(len(zones)):
             print('z', i, zones[i])
             self.blockAngleOffset.append(int(zones[i]) // 2)
+        print("init blockAngleOffset",self.blockAngleOffset)
 
         track        = 0 # outer track
         angleOffset  = 2 * self.blockAngleOffset[track]
@@ -483,23 +495,34 @@ class Disk:
             track = self.blockToTrackMap[block]
             angle = self.blockToAngleMap[block]
             # print '  track', track, 'angle', angle
+            if DEBUG_ECHO_SATF or TRACK_ECHO:
+                print("track", track, 'angle', angle)
 
             # estimate seek time
             dist = int(math.fabs(self.armTrack - track))
             seekEst  = (self.trackWidth / self.armSpeedBase) * dist
             # print('  dist', dist)
-            # print('  seekEst', seekEst)
+            if DEBUG_ECHO_SATF:
+                print('  seekEst', seekEst)
 
             # estimate rotate time
             angleOffset = self.blockAngleOffset[track]
-            # print '  angleOffset', angleOffset
+            if DEBUG_ECHO_SATF:
+                print ('  angleOffset', angleOffset)
             # print '  self.angle', self.angle
             angleAtArrival = (self.angle + (seekEst * self.rotateSpeed))
             while angleAtArrival > 360.0:
                 angleAtArrival -= 360.0
             # print 'self.rotateSpeed', self.rotateSpeed
-            # print 'angleAtArrival', angleAtArrival
-            rotDist = ((angle - angleOffset) - angleAtArrival)
+            if DEBUG_ECHO_SATF:
+                print ('angleAtArrival', angleAtArrival)
+            if NO_ANGLE_OFFSET:
+                """
+                to ensure issue 6 (start loc) no unnecessary offset to directly issue it.
+                """
+                rotDist = (angle - angleAtArrival)
+            else:
+                rotDist = ((angle - angleOffset) - angleAtArrival)
             while rotDist > 360.0:
                 rotDist -= 360.0
             while rotDist < 0.0:
@@ -513,7 +536,8 @@ class Disk:
             # print '  xferEst', xferEst
 
             totalEst = seekEst + rotEst + xferEst
-            # print '  totalEst', seekEst, rotEst, xferEst, ' -> ', totalEst
+            if DIST_LOG:
+                print('  totalEst', seekEst, rotEst, xferEst, ' -> ', totalEst)
 
             # print '  --> block:%d seek:%d rotate:%d xfer:%d est:%d' % (block, seekEst, rotEst, xferEst, totalEst)
 
@@ -572,6 +596,8 @@ class Disk:
                 # a WINDOW is in place - 
                 # print '  curr window', self.currWindow, '  FAIR window', self.fairWindow, ' request count', self.requestCount
                 if self.requestCount > 0 and (self.requestCount % self.fairWindow == 0):
+                    if LOG_BSATF:
+                        print("requestCount:",self.requestCount)
                     self.currWindow = self.currWindow + self.fairWindow
                     # print '  -> UPDATING current window', self.currWindow
                     if self.graphics:
@@ -596,13 +622,19 @@ class Disk:
         elif self.policy == 'SATF' or self.policy == 'BSATF':
             endIndex = self.GetWindow()
             # print '  GetWindow():', endIndex
+            if DEBUG_ECHO_SATF or DEBUG_ECHO_WINDOW or IO_LOG:
+                print("GetWindow():", endIndex)
             if endIndex > len(self.requestQueue):
                 endIndex = len(self.requestQueue)
+            if DEBUG_ECHO_SATF:
+                print("queue:",self.requestQueue[0:endIndex])
             (self.currentBlock, self.currentIndex) = self.DoSATF(self.requestQueue[0:endIndex])
         elif self.policy == 'SSTF':
             # first, find all the blocks on a given track (given window constraints)
             trackList = self.DoSSTF(self.requestQueue[0:self.GetWindow()])
             # then, do SATF on those blocks (otherwise, will not do them in obvious order)
+            if DEBUG_ECHO_SATF:
+                print("queue:",trackList)
             (self.currentBlock, self.currentIndex) = self.DoSATF(trackList)
         else:
             print('policy (%s) not implemented' % self.policy)
@@ -663,6 +695,8 @@ class Disk:
                 self.SwitchColors('red')
                 self.UpdateWindow()
                 currentBlock = self.currentBlock
+                if IO_LOG:
+                    print("begin next IO")
                 self.GetNextIO()
                 nextBlock = self.currentBlock
                 if self.blockToTrackMap[currentBlock] == self.blockToTrackMap[nextBlock]:
