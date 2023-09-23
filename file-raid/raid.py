@@ -5,6 +5,12 @@ import math
 import random
 from optparse import OptionParser
 
+LOG_RAID_1_OFF=True
+LOG_UTILTIME=False
+LOG_ENQUEUE=False # this may be no use
+LOG_TIME=True
+LOG_OFFSET=True
+
 # to make Python2 and Python3 act the same -- how dumb
 def random_seed(seed):
     try:
@@ -84,9 +90,13 @@ class disk:
                 self.countSeq += 1
             else:
                 self.countNseq += 1
+            if LOG_UTILTIME:
+                print("utilTime add",diff * self.xferTime)
             self.utilTime += (diff * self.xferTime)
         else:
             self.countRand += 1
+            if LOG_UTILTIME:
+                print("utilTime add with seekTime",self.seekTime + self.xferTime)
             self.utilTime += (self.seekTime + self.xferTime)
         self.currAddr = addr
 
@@ -130,6 +140,8 @@ class raid:
                 util = (100.0*float(s[4])/totalTime)
             else:
                 util = 0.0
+            if LOG_TIME:
+                print(d,"th disk s[4]:",s[4]," totalTime ",totalTime)
             if s[4] == totalTime:
                 print('disk:%d  busy: %.2f  I/Os: %5d (sequential:%d nearly:%d random:%d)' % (d, util, s[0], s[1], s[2], s[3]))
             elif s[4] == 0:
@@ -179,6 +191,8 @@ class raid:
             print('  read  [disk %d, offset %d]  ' % (disk, off), end='')
             if doNewline:
                 print('')
+        if LOG_ENQUEUE:
+            print(disk,"th disk enqueue",off,"")
         self.disks[disk].enqueue(off)
 
     def doSingleWrite(self, disk, off, doNewline=False):
@@ -198,11 +212,15 @@ class raid:
 
     def enqueue0(self, addr, size, isWrite):
         # can ignore isWrite, as I/O pattern is the same for striping
+        if LOG_ENQUEUE:
+            print("enqueue0 ",addr)
         for b in range(addr, addr+size):
             (disk, off) = self.bmap0(b)
             if isWrite:
                 self.doSingleWrite(disk, off, True)
             else:
+                if LOG_OFFSET:
+                    print("read off:",off)
                 self.doSingleRead(disk, off, True)
         if self.timing == False and self.printPhysical:
             print('')
@@ -231,6 +249,8 @@ class raid:
                 if off % 2 == 0:
                     self.doSingleRead(disk1, off, True)
                 else:
+                    if LOG_RAID_1_OFF:
+                        print("off:",off)
                     self.doSingleRead(disk2, off, True)
         if self.timing == False and self.printPhysical:
             print('')
@@ -432,7 +452,11 @@ for i in range(options.numRequests):
         blk = off
         off += size
     else:
-        blk = int(random.random() * options.range)
+        blk = int(random.random() * options.range);
+        """
+        no use to make `./raid.py -L 4 -t -n 40000 -c -w 100 -W seq | tail -n 2` work.
+        """
+        # blk = int(random.random() * options.range)%r.disks[0].blocksPerDisk;
     if random.random() < writeFrac:
         print(blk, size)
         r.enqueue(blk, size, True)
