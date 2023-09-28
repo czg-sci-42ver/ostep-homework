@@ -6,6 +6,12 @@ from optparse import OptionParser
 import random
 import string
 
+LOG_GC=True
+LOG_CHECK=True
+LOG_DIRECT=False
+LOG_GC_SKIP=True
+LOG_ERASE=False
+
 # to make Python2 and Python3 act the same -- how dumb
 def random_seed(seed):
     try:
@@ -123,7 +129,9 @@ class ssd:
         self.logical_write_fail_sum = 0
         self.logical_read_fail_sum = 0
         return
-
+    """
+    return used block num?
+    """
     def blocks_in_use(self):
         used = 0
         for i in range(self.num_blocks):
@@ -164,6 +172,8 @@ class ssd:
         return self.physical_read(address)
 
     def write_direct(self, page_address, data):
+        if LOG_DIRECT:
+            print("write page",page_address)
         block_address = int(page_address / self.pages_per_block)
         page_begin = block_address * self.pages_per_block
         page_end = page_begin + self.pages_per_block - 1
@@ -171,13 +181,18 @@ class ssd:
         old_list = []
         for old_page in range(page_begin, page_end + 1):
             if self.state[old_page] == self.STATE_VALID:
+                if LOG_DIRECT:
+                    print("block",block_address,"read_cnt plus 1 due to old pages")
                 old_data = self.physical_read(old_page)
                 old_list.append((old_page, old_data))
 
+        print("erase in write_direct")
         self.physical_erase(block_address)
         for (old_page, old_data) in old_list:
             if old_page == page_address:
                 continue
+            if LOG_DIRECT:
+                print("block",block_address,"write_cnt plus 1 due to old pages")
             self.physical_program(old_page, old_data)
             
         self.physical_program(page_address, data)
@@ -198,16 +213,23 @@ class ssd:
                 self.physical_erase(block)
             self.current_block = block
             self.current_page = first_page
+            if LOG_GC:
+                print("gc use block",block)
             self.gc_used_blocks[block] = 1
             return True
         return False
 
     def get_cursor(self):
         if self.current_page == -1:
+            if LOG_CHECK:
+                print("All pages used in the current block. Begin check.\ncurrent_block",self.current_block,"num_blocks",self.num_blocks)
             for block in range(self.current_block, self.num_blocks):
+                if LOG_CHECK:
+                    print("check block",block)
                 if self.is_block_free(block):
                     return 0
             for block in range(0, self.current_block):
+                print("current_block,",self.current_block)
                 if self.is_block_free(block):
                     return 0
             return -1
@@ -235,9 +257,13 @@ class ssd:
         blocks_cleaned = 0
         # for block in range(self.gc_current_block, self.num_blocks) + range(0, self.gc_current_block):
         # tricky flattening generator expression (https://stackoverflow.com/questions/18317913/how-can-i-combine-range-functions)
+        if LOG_GC:
+            print("x first in ","["+str(self.gc_current_block)+","+str(self.num_blocks)+")\nx secondly in ","[0,"+str(self.gc_current_block)+")")
         for block in (x for y in (range(self.gc_current_block, self.num_blocks), range(0, self.gc_current_block)) for x in y):
             # don't GC the block currently being written to
             if block == self.current_block:
+                if LOG_GC_SKIP:
+                    print("skip current block",self.current_block)
                 continue
 
             # page to start looking for live blocks
@@ -245,6 +271,8 @@ class ssd:
             
             # is this page (and hence block) already erased? then don't bother
             if self.state[page_start] == self.STATE_ERASED:
+                if LOG_GC_SKIP:
+                    print("skip",block,"due to STATE_ERASED")
                 continue
 
             # collect list of live physical pages in this block
@@ -256,6 +284,8 @@ class ssd:
 
             # if ONLY live blocks, don't clean it! (why bother with move?)
             if len(live_pages) == self.pages_per_block:
+                if LOG_GC_SKIP:
+                    print("skip",block,"due to all live block inside it")
                 continue
 
             # live pages should be copied to current writing location
@@ -269,6 +299,11 @@ class ssd:
 
             # finally, erase the block and see if we're done
             blocks_cleaned += 1
+            """
+            change `self.gc_used_blocks[i]`
+            """
+            if LOG_ERASE:
+                print("erase ",block)
             self.physical_erase(block)
 
             if self.gc_trace:
@@ -277,10 +312,18 @@ class ssd:
                     print('')
                     self.dump()
                     print('')
-
+            if LOG_GC:
+                print("garbage_collect: blocks_in_use",self.blocks_in_use(),"self.gc_low_water_mark",self.gc_low_water_mark)
+                print("before mod, gc_current_block",self.gc_current_block)
+            """
+            better gc_low_water_mark = gc_high_water_mark -1
+            to avoid duplicate GC of the same block.
+            """
             if self.blocks_in_use() <= self.gc_low_water_mark:
                 # done! record where we stopped and return
                 self.gc_current_block = block
+                if LOG_GC:
+                    print("after mod, gc_current_block",self.gc_current_block)
                 self.gc_count += 1
                 return
 
@@ -289,7 +332,13 @@ class ssd:
 
     def upkeep(self):
         # GARBAGE COLLECTION
+        if LOG_GC:
+            print("blocks_in_use",self.blocks_in_use())
+        """
+        control the used_block num.
+        """
         if self.blocks_in_use() >= self.gc_high_water_mark:
+            print("begin garbage_collect")
             self.garbage_collect()
         # WEAR LEVELING: for future
         return
@@ -540,6 +589,9 @@ if options.cmd_list == '':
             cmd_list.append('r%d' % address)
         elif which_cmd < percent_reads + percent_writes:
             # WRITE
+            """
+            `random.random()` default [0,1] https://docs.python.org/3/library/random.html#recipes
+            """
             if skew_start == 0 and hot_cold and random.random() < hot_percent:
                 address = random_randint(0, int(hot_target * (max_page_addr - 1)))
             else:

@@ -525,7 +525,7 @@ class fs:
     def corrupt(self, whichCorrupt):
         random_seed(self.seedCorrupt)
         num = random_randint(0, 11)
-        # print('RANDINT', num)
+        print('RANDINT', num)
         if whichCorrupt != -1:
             num = whichCorrupt
 
@@ -584,7 +584,10 @@ class fs:
             else:
                 badInode = self.pickRandom('d')
             if self.solve:
-                print('INODE %d was type file, now dir' % badInode)
+                if num == 5:
+                    print('INODE %d was type file, now dir' % badInode)
+                else:
+                    print('INODE %d was type dir, now file' % badInode)
             if num == 5:
                 self.inodes[badInode].setType('d')
             else:

@@ -4,6 +4,9 @@ from __future__ import print_function
 import random
 from optparse import OptionParser
 
+ECHO_FBLOCK=False
+ECHO_DIRUSED=False
+
 # to make Python2 and Python3 act the same -- how dumb
 def random_seed(seed):
     try:
@@ -109,6 +112,8 @@ class block:
         assert(self.ftype == 'd')
         self.dirList.append((name, inum))
         self.dirUsed += 1
+        if ECHO_DIRUSED:
+            print("self.dirUsed:",self.dirUsed,"self.maxUsed:",self.maxUsed)
         assert(self.dirUsed <= self.maxUsed)
 
     def delDirEntry(self, name):
@@ -194,6 +199,7 @@ class fs:
         self.dbitmap = bitmap(self.numData)
         self.data    = []
         for i in range(self.numData):
+            # print("append data block")
             self.data.append(block('free'))
     
         # root inode
@@ -351,6 +357,8 @@ class fs:
         if ftype == 'd':
             refCnt = 2
             fblock = self.dataAlloc()
+            if ECHO_FBLOCK:
+                print("allocate",fblock)
             if fblock == -1:
                 dprint('*** createFile failed: no data blocks left ***')
                 self.inodeFree(inum)

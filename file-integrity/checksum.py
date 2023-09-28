@@ -4,6 +4,8 @@ from __future__ import print_function
 import random
 from optparse import OptionParser
 
+LOG_FLETCHER=True
+
 # to make Python2 and Python3 act the same -- how dumb
 def random_seed(seed):
     try:
@@ -60,6 +62,8 @@ for value in values:
     xor = xor ^ value
     fletcher_a = (fletcher_a + value) % 255
     fletcher_b = (fletcher_b + fletcher_a) % 255
+    if LOG_FLETCHER:
+        print("after change, (fletcher_a,fletcher_b):",fletcher_a,fletcher_b)
 
 print('Decimal:  ', end=' ')
 for word in values:

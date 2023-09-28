@@ -54,6 +54,9 @@ ROOT_INODE                = 0
 ALLOCATE_SEQUENTIAL       = 1
 ALLOCATE_RANDOM           = 2
 
+# self added
+LOG_CONTENTS=False
+
 #
 # Heart of simulation is found here
 #
@@ -562,6 +565,8 @@ class LFS:
         # just make up contents of data blocks - up to the max spec'd by write
         # note: may not write all of these, because of running out of room in inode...
         contents = self.make_random_blocks(num_blks)
+        if LOG_CONTENTS:
+            print("\ncontents",contents)
 
         inode_number, file_name, parent_inode_number, parent_inode = self.__walk_path(path)
         if inode_number == -1:
